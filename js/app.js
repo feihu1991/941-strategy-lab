@@ -48,12 +48,17 @@
 
   // ---------- 数据加载 + 回测 ----------
   function loadOne(item) {
+    item.loading = true;
+    item.error = null;
+    renderCard(item);
     return Data941.loadSymbol(item.input, state.years).then(function (d) {
       item.data = d;
       item.label = d.name || item.label;
+      item.loading = false;
       run(item);
       return item;
     }).catch(function (e) {
+      item.loading = false;
       item.error = e.message || String(e);
       renderCard(item);
       throw e;
@@ -94,8 +99,11 @@
     var card = document.createElement("div");
     card.className = "card";
     if (item.error) {
-      card.innerHTML = '<div class="card-head"><span class="card-name">' + esc(item.input) + '</span></div>' +
-        '<div class="card-err">加载失败: ' + esc(item.error) + '</div>';
+      card.innerHTML = '<div class="card-head"><span class="card-name">' + esc(item.label || item.input) + '</span></div>' +
+        '<div class="card-err">⚠️ ' + esc(item.error) + '</div>';
+    } else if (item.loading) {
+      card.innerHTML = '<div class="card-head"><span class="card-name">' + esc(item.label || item.input) + '</span></div>' +
+        '<div class="card-loading">加载中…</div>';
     } else if (!item.result) {
       card.innerHTML = '<div class="card-head"><span class="card-name">' + esc(item.label || item.input) + '</span></div>' +
         '<div class="card-err">数据不足, 无法回测</div>';
