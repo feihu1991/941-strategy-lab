@@ -15,6 +15,19 @@
 
   var EM_API = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
   var TX_API = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get";
+  var FETCH_TIMEOUT = 8000; // 单源 8 秒超时, 快速降级下一源
+
+  function fetchTimeout(url, ms) {
+    var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, ms) : null;
+    return fetch(url, ctrl ? { signal: ctrl.signal } : undefined).then(function (r) {
+      if (timer) clearTimeout(timer);
+      return r;
+    }, function (e) {
+      if (timer) clearTimeout(timer);
+      throw e;
+    });
+  }
 
   // ---------- 代码解析 ----------
   // 输入 -> { em, tx, display, us }   (em=东财secid, tx=腾讯代号)
@@ -67,7 +80,7 @@
     var r = dateRange(years);
     var url = EM_API + "?secid=" + encodeURIComponent(res.em) +
       "&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55,f56&klt=101&fqt=1&beg=" + r.beg + "&end=" + r.end;
-    return fetch(url).then(function (resp) {
+    return fetchTimeout(url, FETCH_TIMEOUT).then(function (resp) {
       if (!resp.ok) throw new Error("东财 HTTP " + resp.status);
       return resp.json();
     }).then(function (j) {
@@ -81,7 +94,7 @@
   // ---------- 腾讯 (仅A股前复权可靠; 美股可能只有2条) ----------
   function fetchTX(res, years) {
     var url = TX_API + "?param=" + encodeURIComponent(res.tx + ",day,,,800,qfq");
-    return fetch(url).then(function (resp) {
+    return fetchTimeout(url, FETCH_TIMEOUT).then(function (resp) {
       if (!resp.ok) throw new Error("腾讯 HTTP " + resp.status);
       return resp.json();
     }).then(function (j) {
@@ -103,7 +116,7 @@
   function fetchSina(res, years) {
     var n = Math.min(800, years * 254);
     var cb = "cb" + Math.random().toString(36).slice(2, 8);
-    var url = "https://quotes.sina.cn/cn/api/jsonp_v2.php/var%20" + cb +
+    var url = "https://quotes.sina.cn/cn/api/jsonp_v2.php/var%20_=" + cb +
       "/CN_MarketDataService.getKLineData?symbol=" + res.tx + "&scale=240&ma=no&datalen=" + n;
     return jsonp(url, cb).then(function (arr) {
       if (!arr || !arr.length) throw new Error("新浪无数据");
@@ -130,27 +143,34 @@
       s.onerror = function () {
         if (!done) { done = true; cleanup(); reject(new Error("JSONP 失败")); }
       };
+      setTimeout(function () {
+        if (!done) { done = true; cleanup(); reject(new Error("JSONP 超时")); }
+      }, 8000);
       s.src = url;
       document.head.appendChild(s);
     });
   }
 
   // ---------- 主入口: 多源切换 ----------
-  // 注意: 东财对高频请求有风控(连接重置), 按源顺序降级
+  // 注意: 东财对高频请求有风控(连接重置), 按源顺序降级; 收集各源错误便于诊断
   function loadSymbol(input, years) {
     var res = resolveSymbol(input);
     if (!res) return Promise.reject(new Error("无法识别代码: " + input));
-    var sources = res.us ? [fetchEM, fetchTX] : [fetchEM, fetchTX, fetchSina];
+    var sources = res.us ? [fetchEM, fetchTX] : [fetchTX, fetchEM, fetchSina];
+    var errs = [];
     var chain = Promise.reject(new Error("start"));
     sources.forEach(function (fn) {
-      chain = chain.catch(function () { return fn(res, years); });
+      chain = chain.catch(function (e) {
+        if (e && e.message !== "start") errs.push(e.message);
+        return fn(res, years);
+      });
     });
     return chain.then(function (d) {
       d.display = res.display;
       d.us = res.us;
       return d;
     }).catch(function (e) {
-      throw new Error("所有数据源均失败: " + (e && e.message));
+      throw new Error("数据源均失败: " + errs.join("；"));
     });
   }
 
