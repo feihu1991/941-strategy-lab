@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>941 冠军策略研究台 · 价格行为循环回测</title>
+<meta name="description" content="基于 Oliver Kell 941% 冠军策略(价格行为循环)的机械化近似回测, 对比不同股票表现。纯前端, 数据来自东方财富公共接口。">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <h1>📈 941 冠军策略研究台</h1>
+    <p class="sub">Oliver Kell · 价格行为循环（Price Action Loop）· 机械化近似回测</p>
+    <p class="tagline">同一套策略，在不同股票上表现如何？点击卡片查看明细。</p>
+  </div>
+</header>
+
+<main class="container">
+  <section class="controls">
+    <div class="ctl-row">
+      <input id="symbolInput" type="text" placeholder="输入代码: 600519 / sh600519 / AAPL / usTSLA" spellcheck="false">
+      <button id="addBtn" class="btn primary">添加股票</button>
+    </div>
+    <div class="ctl-row">
+      <span class="ctl-label">策略档位</span>
+      <select id="mode">
+        <option value="default" selected>标准 (SMA50/200 · 2.5ATR · 3R)</option>
+        <option value="stable">稳健 (SMA60/250 · 3.0ATR · 2.5R)</option>
+        <option value="aggressive">激进 (SMA30/150 · 2.0ATR · 4R)</option>
+      </select>
+      <span class="ctl-label">数据周期</span>
+      <select id="years">
+        <option value="3" selected>3 年</option>
+        <option value="2">2 年</option>
+        <option value="1">1 年</option>
+      </select>
+    </div>
+  </section>
+
+  <details class="strategy-desc">
+    <summary>📖 策略说明：什么是“价格行为循环”？</summary>
+    <div class="desc-body">
+      <p><b>来源</b>：德国交易员 <b>Oliver Kell</b> 在 2022 年交易锦标赛中以一年 <b>+941.1%</b> 夺冠，其方法被称为「价格行为循环」——纯价格行为（不看指标），融入结构识别、突破入场、止损管理与分批止盈的闭环流程（参考其著作《成功的交易》）。</p>
+      <p><b>本站的机械化近似</b>（研究用途，非原版）：</p>
+      <ol>
+        <li><b>趋势过滤</b>：收盘价 &gt; SMA200 且 SMA50 &gt; SMA200（只做上升趋势）</li>
+        <li><b>结构识别</b>：用 i±2 根 K 线的高低点确认 swing 结构（无未来函数，延迟 2 根确认）</li>
+        <li><b>突破入场</b>：收盘价上穿最新 swing 高点时买入（收盘价成交）</li>
+        <li><b>止损</b>：入场价 − 2.5×ATR；随后结构低点抬升时追踪上移</li>
+        <li><b>止盈</b>：达到 3R（R=初始止损距离）止盈；跌破追踪止损即离场</li>
+        <li><b>费用</b>：开仓 0.08% + 平仓 0.15%（近似佣金/印花税）</li>
+      </ol>
+      <p class="warn">⚠️ 免责声明：本站为学习研究用途。回测基于近似规则与历史数据，<b>过去表现不代表未来收益</b>，不构成任何投资建议。</p>
+    </div>
+  </details>
+
+  <section id="cards" class="cards">
+    <div class="loading">正在加载行情数据…</div>
+  </section>
+
+  <section id="detail" class="detail hidden">
+    <div class="detail-head">
+      <h2 id="detailTitle"></h2>
+      <button id="closeDetail" class="btn ghost">✕ 关闭</button>
+    </div>
+    <div class="detail-grid">
+      <div class="panel">
+        <h3>K 线与买卖信号</h3>
+        <div id="klineChart" class="chart"></div>
+      </div>
+      <div class="panel">
+        <h3>净值对比（策略 vs 买入持有）</h3>
+        <div id="eqChart" class="chart"></div>
+      </div>
+      <div class="panel">
+        <h3>关键指标</h3>
+        <div id="statsTable"></div>
+      </div>
+      <div class="panel wide">
+        <div id="tradeList"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <p>数据来源：东方财富公共行情接口（免费 · 无需 Key）｜策略规则：价格行为循环近似实现｜仅供研究学习</p>
+</footer>
+
+<script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<script>window.echarts||document.write('<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"><\/script>')</script>
+<script src="js/strategy.js"></script>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
