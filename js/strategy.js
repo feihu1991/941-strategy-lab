@@ -75,7 +75,10 @@
         open: +r[1], close: +r[2], high: +r[3], low: +r[4], volume: +r[5]
       };
     });
-    if (bars.length < smaSlow + 60) return null;
+    // 数据量门槛 + 自适应周期: 数据不足时缩短均线期数, 避免"数据不足"假死
+    if (bars.length < 120) return null;
+    var slowN = Math.min(smaSlow, bars.length - 80);
+    var fastN = Math.min(smaFast, Math.max(10, slowN - 40));
 
     var closes = bars.map(function (b) { return b.close; });
     var swings = computeSwings(bars);
@@ -132,9 +135,9 @@
 
       // 4) 开仓判断 (收盘穿越 + 趋势过滤)
       var prevClose = i > 0 ? bars[i - 1].close : null;
-      if (!pos && i >= smaSlow && prevClose !== null) {
-        var fast = smaAt(closes, i, smaFast);
-        var slow = smaAt(closes, i, smaSlow);
+      if (!pos && i >= slowN && prevClose !== null) {
+        var fast = smaAt(closes, i, fastN);
+        var slow = smaAt(closes, i, slowN);
         var trendUp = b.close > slow && fast > slow;
         var isNewBreakout = lastSwingHigh !== null && lastSwingHigh !== usedBreakout;
         var breakout = isNewBreakout && prevClose <= lastSwingHigh && b.close > lastSwingHigh;
