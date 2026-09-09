@@ -25,7 +25,8 @@
   var state = {
     items: [],      // { input, label, data:{name,rows}, result }
     mode: "default",
-    years: 3
+    years: 3,
+    detailItem: null  // 当前详情面板对应的股票
   };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -70,6 +71,10 @@
     var opts = MODES[state.mode].opts;
     item.result = Strategy941.backtest(item.data.rows, opts);
     renderCard(item);
+    // 若详情面板正展示这只股票, 同步刷新(不滚动)
+    if (state.detailItem === item && item.result && !$("detail").classList.contains("hidden")) {
+      showDetail(item, { scroll: false });
+    }
   }
 
   // ---------- 卡片渲染 ----------
@@ -109,7 +114,6 @@
         '<div class="card-err">数据不足, 无法回测</div>';
     } else {
       var s = item.result.stats;
-      var tc = item.result.trades;
       var color = s.totalReturn >= 0 ? "#e0434f" : "#18a058";
       card.innerHTML =
         '<div class="card-head">' +
@@ -127,7 +131,14 @@
       card.addEventListener("click", function () { showDetail(item); });
     }
     card.dataset.key = item.input;
-    grid.appendChild(card);
+    // 替换同 key 的旧卡片(而非重复 append), 保持原位置
+    var old = null;
+    for (var k = 0; k < grid.children.length; k++) {
+      var ch = grid.children[k];
+      if (ch.dataset && ch.dataset.key === item.input) { old = ch; break; }
+    }
+    if (old) grid.replaceChild(card, old);
+    else grid.appendChild(card);
   }
 
   function refreshGrid() {
@@ -138,11 +149,13 @@
   // ---------- 详情视图 ----------
   var klineChart = null, eqChart = null;
 
-  function showDetail(item) {
+  function showDetail(item, opts) {
     if (!item.result) return;
+    opts = opts || {};
+    state.detailItem = item;
     $("detail").classList.remove("hidden");
     $("detailTitle").textContent = (item.label || item.input) + " · " + item.data.code + "  ·  " + state.years + "年 / " + MODES[state.mode].name;
-    $("detail").scrollIntoView({ behavior: "smooth" });
+    if (opts.scroll !== false) $("detail").scrollIntoView({ behavior: "smooth" });
 
     var r = item.result;
     var dates = r.bars.map(function (b) { return b.date; });
@@ -200,7 +213,7 @@
       ["年化收益", fmtPct(s.annualReturn), cls(s.annualReturn)],
       ["最大回撤", fmtPct(s.maxDrawdown), "down"],
       ["胜率", (s.winRate * 100).toFixed(0) + "%", ""],
-      ["盈亏比", s.profitFactor.toFixed(2), ""],
+      ["盈亏比", s.payoffRatio.toFixed(2), ""],
       ["交易次数", s.tradeCount + " 次", ""],
       ["平均持仓", s.avgHoldBars + " 天", ""],
       ["买入持有收益", fmtPct(s.benchTotal), cls(s.benchTotal)],
@@ -226,7 +239,12 @@
   function addSymbol(input) {
     var resolved = Data941.resolveSymbol(input);
     if (!resolved) { toast("无法识别代码: " + input, true); return; }
-    if (state.items.some(function (it) { return Data941.resolveSymbol(it.input).secid === resolved.secid; })) {
+    // 按东财 secid(em) 去重 —— resolveSymbol 返回 {em, tx, display, us}
+    var dup = state.items.some(function (it) {
+      var r = Data941.resolveSymbol(it.input);
+      return r && r.em === resolved.em;
+    });
+    if (dup) {
       toast("该股票已在列表中");
       return;
     }
@@ -256,11 +274,20 @@
     });
     $("years").addEventListener("change", function () {
       state.years = parseInt($("years").value, 10);
+      // 周期变化后详情面板内容会过期, 先关闭避免展示陈旧数据
+      state.detailItem = null;
+      hideDetail();
       state.items.forEach(function (it) { it.data = null; it.result = null; it.error = null; });
       refreshGrid();
       state.items.forEach(function (it) { loadOne(it); });
     });
     $("closeDetail").addEventListener("click", hideDetail);
+
+    // 窗口尺寸变化时重绘图表(移动端旋转/地址栏收起)
+    window.addEventListener("resize", function () {
+      if (klineChart) klineChart.resize();
+      if (eqChart) eqChart.resize();
+    });
 
     // 初始股票
     DEFAULT_SYMBOLS.forEach(function (d) {

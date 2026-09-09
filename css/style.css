@@ -119,6 +119,9 @@ select {
 .card-row b { color: var(--ink); }
 .card-spark { margin-top: 6px; text-align: center; }
 .card-err { color: #b45309; font-size: 13px; padding: 10px 0; }
+.card-loading { color: var(--sub); font-size: 14px; padding: 16px 0; }
+.card-loading::after { content: ""; animation: dots 1.2s infinite; }
+@keyframes dots { 0%,20% { content: ""; } 40% { content: "."; } 60% { content: ".."; } 80%,100% { content: "..."; } }
 
 .up { color: var(--up); }
 .down { color: var(--down); }

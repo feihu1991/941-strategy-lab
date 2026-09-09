@@ -78,7 +78,20 @@
   // ---------- 东方财富 ----------
   function fetchEM(res, years) {
     var r = dateRange(years);
-    var url = EM_API + "?secid=" + encodeURIComponent(res.em) +
+    // 美股交易所未知: 105=纳斯达克, 106=纽交所, 依次回退
+    var candidates = [res.em];
+    if (/^105\./.test(res.em)) candidates.push("106." + res.em.slice(4));
+    else if (/^106\./.test(res.em)) candidates.push("105." + res.em.slice(4));
+
+    var chain = Promise.reject(new Error("start"));
+    candidates.forEach(function (sid) {
+      chain = chain.catch(function () { return fetchEMOne(sid, res, r); });
+    });
+    return chain;
+  }
+
+  function fetchEMOne(secid, res, r) {
+    var url = EM_API + "?secid=" + encodeURIComponent(secid) +
       "&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55,f56&klt=101&fqt=1&beg=" + r.beg + "&end=" + r.end;
     return fetchTimeout(url, FETCH_TIMEOUT).then(function (resp) {
       if (!resp.ok) throw new Error("东财 HTTP " + resp.status);

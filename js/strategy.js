@@ -158,15 +158,20 @@
       eqCurve.push({ date: b.date, value: eq });
     }
 
-    // 期末强平
+    // 期末强平: 必须结算进 equity, 否则指标会漏掉期末持仓的浮盈/浮亏
     if (pos) {
       var last = bars[bars.length - 1];
+      var exitP = last.close;
+      var endRet = (exitP / pos.entryPrice - 1) - feeClose;
+      equity *= (exitP / pos.entryPrice) * (1 - feeClose);
       trades.push({
         entryDate: pos.date, exitDate: last.date,
-        entryPrice: pos.entryPrice, exitPrice: last.close,
-        ret: (last.close / pos.entryPrice - 1) - feeClose,
-        bars: bars.length - 1 - pos.entryIdx, reason: "期末平仓"
+        entryPrice: pos.entryPrice, exitPrice: exitP,
+        ret: endRet, bars: bars.length - 1 - pos.entryIdx, reason: "期末平仓"
       });
+      // 同步净值曲线最后一点(原值含浮盈但未扣平仓费)
+      if (eqCurve.length) eqCurve[eqCurve.length - 1].value = equity;
+      pos = null;
     }
 
     // ---------- 绩效统计 ----------
@@ -192,7 +197,7 @@
         annualReturn: Math.pow(equity, 1 / Math.max(years, 0.1)) - 1,
         maxDrawdown: stats.maxDrawdown,
         winRate: stats.winRate,
-        profitFactor: stats.profitFactor,
+        payoffRatio: stats.payoffRatio,
         tradeCount: trades.length,
         avgHoldBars: stats.avgHoldBars,
         benchTotal: benchTotal,
@@ -221,31 +226,13 @@
     return {
       maxDrawdown: mdd,
       winRate: trades.length ? wins.length / trades.length : 0,
-      profitFactor: avgLoss !== 0 ? Math.abs(avgWin / avgLoss) : (avgWin > 0 ? 99 : 0),
+      payoffRatio: avgLoss !== 0 ? Math.abs(avgWin / avgLoss) : (avgWin > 0 ? 99 : 0),
       avgHoldBars: Math.round(avgHold)
     };
   }
 
-  // ---------- 股票代码规范化 (腾讯接口) ----------
-  function normalizeSymbol(input) {
-    var s = (input || "").trim().toLowerCase().replace(/\.(ss|sz|sh)$/i, "");
-    if (/^us/i.test(s)) return s; // usAAPL
-    if (/^\d{6}$/.test(s)) {
-      if (s[0] === "6" || s[0] === "9" || s[0] === "5") return "sh" + s;
-      return "sz" + s;
-    }
-    if (/^sh|^sz/.test(s)) return s;
-    if (/^[a-z]{1,5}$/.test(s)) return "us" + s.toUpperCase();
-    return s;
-  }
-
-  function symbolToMarket(s) {
-    return /^us/i.test(s) ? "美股" : (s[0] === "s" && s[1] === "h" ? "沪市" : "深市");
-  }
 
   return {
     backtest: backtest,
-    normalizeSymbol: normalizeSymbol,
-    symbolToMarket: symbolToMarket
   };
 });
