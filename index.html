@@ -3,96 +3,126 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>941 冠军策略研究台 · 价格行为循环回测</title>
-<meta name="description" content="基于 Oliver Kell 941% 冠军策略(价格行为循环)的机械化近似回测, 对比不同股票表现。纯前端, 数据来自东方财富公共接口。">
+<title>941 策略研究台 · 多策略对比回测</title>
+<meta name="description" content="多策略横向对比回测：941 价格行为循环、双均线、唐奇安通道、RSI 反转与买入持有。参数可调、组合回测，纯前端，数据来自公共行情接口。">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
 <header class="hero">
   <div class="hero-inner">
-    <h1>📈 941 冠军策略研究台</h1>
-    <p class="sub">Oliver Kell · 价格行为循环（Price Action Loop）· 机械化近似回测</p>
-    <p class="tagline">同一套策略，在不同股票上表现如何？点击卡片查看明细。</p>
+    <h1>📊 941 策略研究台</h1>
+    <p class="sub">多策略横向对比 · 参数可调 · 组合回测</p>
+    <p class="tagline">同一批股票，五套策略，谁在什么行情下更有效？</p>
   </div>
 </header>
 
 <main class="container">
-  <section class="controls">
+
+  <!-- ============ 控制区 ============ -->
+  <section class="panel controls">
     <div class="ctl-row">
-      <input id="symbolInput" type="text" placeholder="输入代码: 600519 / sh600519 / AAPL / usTSLA" spellcheck="false">
+      <input id="symbolInput" type="text" placeholder="输入代码：600519 / sh600519 / AAPL / usTSLA" spellcheck="false">
       <button id="addBtn" class="btn primary">添加股票</button>
-    </div>
-    <div class="ctl-row">
-      <span class="ctl-label">策略档位</span>
-      <select id="mode">
-        <option value="default" selected>标准 (SMA50/200 · 2.5ATR · 3R)</option>
-        <option value="stable">稳健 (SMA60/250 · 3.0ATR · 2.5R)</option>
-        <option value="aggressive">激进 (SMA30/150 · 2.0ATR · 4R)</option>
-      </select>
-      <span class="ctl-label">数据周期</span>
+      <span class="spacer"></span>
+      <span class="ctl-label">周期</span>
       <select id="years">
-        <option value="3" selected>3 年</option>
-        <option value="2">2 年</option>
         <option value="1">1 年</option>
+        <option value="2">2 年</option>
+        <option value="3" selected>3 年</option>
       </select>
+      <div class="view-toggle">
+        <button id="viewCards" class="btn tiny on">卡片</button>
+        <button id="viewTable" class="btn tiny">表格</button>
+      </div>
     </div>
+
+    <div class="ctl-row">
+      <span class="ctl-label">启用策略</span>
+      <div id="strategyChips" class="chips"></div>
+      <span class="ctl-label">主策略</span>
+      <select id="activeSelect"></select>
+    </div>
+
+    <details class="params">
+      <summary id="paramTitle">参数</summary>
+      <p id="strategyDesc" class="strategy-desc"></p>
+      <div id="paramPanel" class="param-panel"></div>
+    </details>
   </section>
 
-  <details class="strategy-desc">
-    <summary>📖 策略说明：什么是“价格行为循环”？</summary>
-    <div class="desc-body">
-      <p><b>来源</b>：德国交易员 <b>Oliver Kell</b> 在 2022 年交易锦标赛中以一年 <b>+941.1%</b> 夺冠，其方法被称为「价格行为循环」——纯价格行为（不看指标），融入结构识别、突破入场、止损管理与分批止盈的闭环流程（参考其著作《成功的交易》）。</p>
-      <p><b>本站的机械化近似</b>（研究用途，非原版）：</p>
-      <ol>
-        <li><b>趋势过滤</b>：收盘价 &gt; SMA200 且 SMA50 &gt; SMA200（只做上升趋势）</li>
-        <li><b>结构识别</b>：用 i±2 根 K 线的高低点确认 swing 结构（无未来函数，延迟 2 根确认）</li>
-        <li><b>突破入场</b>：收盘价上穿最新 swing 高点时买入（收盘价成交）</li>
-        <li><b>止损</b>：入场价 − 2.5×ATR；随后结构低点抬升时追踪上移</li>
-        <li><b>止盈</b>：达到 3R（R=初始止损距离）止盈；跌破追踪止损即离场</li>
-        <li><b>费用</b>：开仓 0.08% + 平仓 0.15%（近似佣金/印花税）</li>
-      </ol>
-      <p class="warn">⚠️ 免责声明：本站为学习研究用途。回测基于近似规则与历史数据，<b>过去表现不代表未来收益</b>，不构成任何投资建议。</p>
-    </div>
-  </details>
-
-  <section id="cards" class="cards">
-    <div class="loading">正在加载行情数据…</div>
+  <!-- ============ 概览对比 ============ -->
+  <section class="panel">
+    <h2 class="panel-title">各股票表现对比 <span class="hint">（主策略 vs 买入持有）</span></h2>
+    <div id="summaryChart" class="chart chart-sm"></div>
   </section>
 
-  <section id="detail" class="detail hidden">
+  <!-- ============ 结果区 ============ -->
+  <section class="panel">
+    <h2 class="panel-title">回测结果 <span class="hint">点击卡片查看明细 · 勾选左上角加入组合</span></h2>
+    <div id="cards" class="cards"></div>
+    <div id="tableWrap" class="hidden"></div>
+  </section>
+
+  <!-- ============ 组合回测 ============ -->
+  <section id="portfolioBox" class="panel hidden">
+    <h2 class="panel-title">组合回测 <span class="hint" id="portfolioMeta"></span></h2>
+    <div id="portfolioChart" class="chart"></div>
+    <div id="portfolioStats" class="mt"></div>
+  </section>
+
+  <!-- ============ 详情 ============ -->
+  <section id="detail" class="panel hidden">
     <div class="detail-head">
-      <h2 id="detailTitle"></h2>
+      <h2 class="panel-title" id="detailTitle"></h2>
       <button id="closeDetail" class="btn ghost">✕ 关闭</button>
     </div>
     <div class="detail-grid">
-      <div class="panel">
-        <h3>K 线与买卖信号</h3>
-        <div id="klineChart" class="chart"></div>
+      <div class="subpanel">
+        <h3>策略净值对比</h3>
+        <div id="detailEquity" class="chart"></div>
       </div>
-      <div class="panel">
-        <h3>净值对比（策略 vs 买入持有）</h3>
-        <div id="eqChart" class="chart"></div>
+      <div class="subpanel">
+        <h3>水下回撤</h3>
+        <div id="detailDD" class="chart"></div>
       </div>
-      <div class="panel">
-        <h3>关键指标</h3>
-        <div id="statsTable"></div>
+      <div class="subpanel">
+        <h3>K线与买卖信号（主策略）</h3>
+        <div id="detailCandle" class="chart"></div>
       </div>
-      <div class="panel wide">
-        <div id="tradeList"></div>
+      <div class="subpanel">
+        <h3>关键指标（主策略）</h3>
+        <div id="detailStats"></div>
+      </div>
+      <div class="subpanel wide">
+        <h3>交易明细（主策略）</h3>
+        <div id="detailTrades"></div>
       </div>
     </div>
   </section>
+
 </main>
 
 <footer class="footer">
-  <p>数据来源：东方财富公共行情接口（免费 · 无需 Key）｜策略规则：价格行为循环近似实现｜仅供研究学习</p>
+  <p><b>策略说明</b>：941 价格行为循环为 Oliver Kell（2022 年交易锦标赛 +941.1%）方法的机械化近似，其余为经典对照策略。</p>
+  <p><b>数据来源</b>：腾讯 / 东方财富 / 新浪 公共行情接口（免 Key，自动降级；新浪源不复权）。</p>
+  <p class="warn">⚠️ 仅供学习研究：回测基于历史数据与近似规则，<b>过去表现不代表未来收益</b>，不构成任何投资建议。</p>
 </footer>
 
 <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
 <script>window.echarts||document.write('<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"><\/script>')</script>
-<script src="js/strategy.js"></script>
-<script src="js/data.js"></script>
-<script src="js/app.js"></script>
+<script src="js/core/indicators.js"></script>
+<script src="js/core/metrics.js"></script>
+<script src="js/core/engine.js"></script>
+<script src="js/strategies/priceAction.js"></script>
+<script src="js/strategies/dualMA.js"></script>
+<script src="js/strategies/donchian.js"></script>
+<script src="js/strategies/rsiReversal.js"></script>
+<script src="js/strategies/buyHold.js"></script>
+<script src="js/strategies/registry.js"></script>
+<script src="js/data/sources.js"></script>
+<script src="js/ui/charts.js"></script>
+<script src="js/ui/components.js"></script>
+<script src="js/ui/app.js"></script>
 </body>
 </html>
