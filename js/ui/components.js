@@ -129,7 +129,8 @@
         '<td>' + (s.exposure * 100).toFixed(0) + '%</td>' +
         '</tr>';
     }).join("");
-    return '<div class="table-scroll"><table class="result-table"><thead><tr>' + head +
+    return '<div class="scroll-hint">← 左右滑动查看全部指标 →</div>' +
+      '<div class="table-scroll"><table class="result-table"><thead><tr>' + head +
       '</tr></thead><tbody>' + body + '</tbody></table></div>';
   }
 

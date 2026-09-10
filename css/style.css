@@ -184,6 +184,9 @@ th.sortable:hover { color: var(--brand); }
 .table-scroll::-webkit-scrollbar-track { background: transparent; }
 .scroll-y.table-scroll { overflow-y: auto; overflow-x: auto; }
 .table-scroll table { min-width: 100%; }
+
+/* 窄屏滑动提示(默认隐藏) */
+.scroll-hint { display: none; font-size: 11px; color: var(--muted); text-align: center; padding: 0 0 4px; }
 .stats-table td:first-child { color: var(--ink-2); }
 .stats-table td:last-child { font-weight: 700; }
 .table-wrap-scroll { overflow-x: auto; }
@@ -223,4 +226,5 @@ th.sortable:hover { color: var(--brand); }
   .table-scroll table { font-size: 12px; }
   th, td { padding: 6px 8px; }
   th { white-space: normal; line-height: 1.25; }
+  .scroll-hint { display: block; }
 }

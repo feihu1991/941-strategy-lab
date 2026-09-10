@@ -250,6 +250,7 @@
         '<td>' + st.tradeCount + '</td></tr>';
     }).join("");
     $("portfolioStats").innerHTML =
+      '<div class="scroll-hint">← 左右滑动查看全部指标 →</div>' +
       '<div class="table-scroll"><table class="result-table"><thead><tr>' +
       '<th>策略</th><th>组合收益</th><th>超额</th><th>最大回撤</th><th>夏普</th><th>Calmar</th><th>总交易</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>';
