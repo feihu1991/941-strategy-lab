@@ -38,29 +38,40 @@
     }
   }
 
-  // ---------- 代码解析 ----------
+  // ---------- 代码解析（支持 A股 / 港股 / 美股） ----------
   function resolveSymbol(input) {
     var s = (input || "").trim();
     if (!s) return null;
-    // 已带东财 secid（如 105.AAPL）
-    var m = s.match(/^(\d{2,3})\.([A-Za-z0-9]+)$/);
+
+    // 已带东财 secid: 1.600519 / 0.300750 / 105.AAPL / 116.00700（前缀 1-3 位）
+    var m = s.match(/^(\d{1,3})\.([A-Za-z0-9]+)$/);
     if (m) {
-      var us = /^10[567]/.test(m[1]);
-      return { em: s, tx: us ? "us" + m[2].toUpperCase() : (m[1] === "1" ? "sh" : "sz") + m[2],
-               display: m[2].toUpperCase(), us: us };
+      var pre = m[1], c = m[2];
+      if (pre === "116") return { em: s, tx: "hk" + c, display: c, market: "HK", us: false };
+      if (/^10[567]/.test(pre)) return { em: s, tx: "us" + c.toUpperCase(), display: c.toUpperCase(), market: "US", us: true };
+      return { em: s, tx: (pre === "1" ? "sh" : "sz") + c, display: c, market: "A", us: false };
     }
-    // 美股（1-5 个字母，可带 us 前缀）
+
+    // 港股: hk00700 / 00700（5 位数字）
+    var hk = s.match(/^hk(\d{5})$/i) || s.match(/^(\d{5})$/);
+    if (hk) {
+      var hc = hk[1];
+      return { em: "116." + hc, tx: "hk" + hc, display: hc, market: "HK", us: false };
+    }
+
+    // 美股: usAAPL / AAPL（1-5 个字母）
     var usm = s.toLowerCase().match(/^(?:us)?([a-z]{1,5})$/);
     if (usm && !/^\d/.test(s)) {
       var uc = usm[1].toUpperCase();
-      return { em: "105." + uc, tx: "us" + uc, display: uc, us: true };
+      return { em: "105." + uc, tx: "us" + uc, display: uc, market: "US", us: true };
     }
-    // A股 6 位数字（可带 sh/sz 前缀）
+
+    // A股: 6 位数字（可带 sh/sz 前缀）
     var num = s.replace(/^(sh|sz)/i, "").match(/^(\d{6})$/);
     if (num) {
       var code = num[1];
       var isSH = code[0] === "6" || code[0] === "9" || code[0] === "5";
-      return { em: (isSH ? "1." : "0.") + code, tx: (isSH ? "sh" : "sz") + code, display: code, us: false };
+      return { em: (isSH ? "1." : "0.") + code, tx: (isSH ? "sh" : "sz") + code, display: code, market: "A", us: false };
     }
     return null;
   }
@@ -167,7 +178,8 @@
     if (cache.has(ck)) return Promise.resolve(cache.get(ck));
     if (inflight.has(ck)) return inflight.get(ck);
 
-    var sources = res.us ? [fromEastmoney, fromTencent] : [fromTencent, fromEastmoney, fromSina];
+    var sources = res.us ? [fromEastmoney, fromTencent]
+      : (res.market === "HK" ? [fromTencent, fromEastmoney] : [fromTencent, fromEastmoney, fromSina]);
     var errs = [];
     var job = schedule(function () {
       var chain = Promise.reject(new Error("start"));

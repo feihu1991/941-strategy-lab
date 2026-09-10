@@ -22,7 +22,11 @@
   <!-- ============ 控制区 ============ -->
   <section class="panel controls">
     <div class="ctl-row">
-      <input id="symbolInput" type="text" placeholder="输入代码：600519 / sh600519 / AAPL / usTSLA" spellcheck="false">
+      <div class="input-wrap">
+        <input id="symbolInput" type="text" autocomplete="off" spellcheck="false"
+               placeholder="搜索：代码 / 名称 / 拼音（600519 · 茅台 · gzmt · AAPL）">
+        <div id="suggestBox" class="suggest-box hidden"></div>
+      </div>
       <button id="addBtn" class="btn primary">添加股票</button>
       <span class="spacer"></span>
       <span class="ctl-label">周期</span>
@@ -120,6 +124,7 @@
 <script src="js/strategies/rsiReversal.js"></script>
 <script src="js/strategies/buyHold.js"></script>
 <script src="js/strategies/registry.js"></script>
+<script src="js/data/symbols.js"></script>
 <script src="js/data/sources.js"></script>
 <script src="js/ui/charts.js"></script>
 <script src="js/ui/components.js"></script>

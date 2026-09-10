@@ -6,8 +6,11 @@
 (function () {
   "use strict";
 
-  var DEFAULT_STOCKS = ["sh600519", "sh600036", "sz300750", "sz002594", "sh688981", "usAAPL"];
-  var VIEW_KEY = "941.view";
+  // 默认展示的热门标的（由 symbols.js 字典提供，覆盖 A股/港股/美股）
+  function defaultStocks() {
+    return (window.Symbols && window.Symbols.hotSymbols ? window.Symbols.hotSymbols() : [])
+      .map(function (s) { var p = s.split("|"); return { input: p[1], name: p[0] }; });
+  }
 
   var state = {
     stocks: [],            // [{input, display, name, code, bars, results, loading, error}]
@@ -65,16 +68,17 @@
   }
 
   // ---------- 加载 ----------
-  function addStock(input, silent) {
+  function addStock(input, silent, presetName) {
     var res = DS.resolveSymbol(input);
     if (!res) { toast("无法识别代码: " + input, true); return Promise.reject(new Error("bad symbol")); }
     var dup = state.stocks.some(function (s) {
       var r = DS.resolveSymbol(s.input);
       return r && r.em === res.em;
     });
-    if (dup) { if (!silent) toast("该股票已在列表中"); return Promise.resolve(null); }
+    if (dup) { if (!silent) toast("已在列表中"); return Promise.resolve(null); }
 
-    var stock = { input: input, display: res.display, loading: true, results: null, bars: null, error: null };
+    var stock = { input: input, display: res.display, name: presetName || null,
+                  loading: true, results: null, bars: null, error: null };
     state.stocks.push(stock);
     render();
 
@@ -295,13 +299,96 @@
     else renderCharts();
   }
 
+  // ---------- 输入联想 ----------
+  var sug = { items: [], idx: -1, timer: null };
+
+  function renderSuggest(items) {
+    sug.items = items || [];
+    sug.idx = -1;
+    var box = $("suggestBox");
+    if (!sug.items.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+    box.classList.remove("hidden");
+    box.innerHTML = sug.items.map(function (it, i) {
+      var tag = it.label || (window.Symbols.marketLabel ? window.Symbols.marketLabel(it.market) : it.market);
+      return '<div class="sug-item" data-idx="' + i + '">' +
+        '<span class="sug-name">' + C.esc(it.name) + '</span>' +
+        '<span class="sug-code">' + C.esc(it.code) + '</span>' +
+        '<span class="sug-tag">' + C.esc(tag) + '</span></div>';
+    }).join("");
+  }
+
+  function clearSuggest() {
+    sug.items = []; sug.idx = -1;
+    var box = $("suggestBox");
+    if (box) { box.classList.add("hidden"); box.innerHTML = ""; }
+  }
+
+  function highlightSuggest() {
+    var box = $("suggestBox");
+    if (!box) return;
+    var nodes = box.querySelectorAll ? box.querySelectorAll(".sug-item") : [];
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].classList.toggle("on", i === sug.idx);
+    }
+  }
+
+  function pickSuggest(i) {
+    var it = sug.items[i];
+    if (!it) return;
+    clearSuggest();
+    $("symbolInput").value = "";
+    addStock(it.secid || it.code, false, it.name);
+  }
+
+  function onSymbolInput() {
+    var q = $("symbolInput").value.trim();
+    if (!q) { clearSuggest(); return; }
+    var local = (window.Symbols && window.Symbols.searchLocal(q, 6)) || [];
+    renderSuggest(local);
+    clearTimeout(sug.timer);
+    if (!window.Symbols || !window.Symbols.searchOnline) return;
+    sug.timer = setTimeout(function () {
+      window.Symbols.searchOnline(q, function (online) {
+        var seen = {}, merged = [];
+        local.concat(online || []).forEach(function (s) {
+          if (s.secid && !seen[s.secid]) { seen[s.secid] = 1; merged.push(s); }
+        });
+        // 输入框内容已变化则丢弃过期结果
+        if ($("symbolInput").value.trim() !== q) return;
+        renderSuggest(merged.slice(0, 8));
+      });
+    }, 300);
+  }
+
   // ---------- 事件 ----------
   function bind() {
     $("addBtn").addEventListener("click", function () {
       var v = $("symbolInput").value.trim();
       if (v) { addStock(v); $("symbolInput").value = ""; }
     });
-    $("symbolInput").addEventListener("keydown", function (e) { if (e.key === "Enter") $("addBtn").click(); });
+    var input = $("symbolInput");
+    input.addEventListener("input", onSymbolInput);
+    input.addEventListener("keydown", function (e) {
+      var box = $("suggestBox");
+      var open = box && !box.classList.contains("hidden") && sug.items.length;
+      if (e.key === "ArrowDown" && open) { e.preventDefault(); sug.idx = Math.min(sug.idx + 1, sug.items.length - 1); highlightSuggest(); return; }
+      if (e.key === "ArrowUp" && open) { e.preventDefault(); sug.idx = Math.max(sug.idx - 1, -1); highlightSuggest(); return; }
+      if (e.key === "Escape") { clearSuggest(); return; }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (open) { pickSuggest(sug.idx >= 0 ? sug.idx : 0); return; }
+        var v = input.value.trim();
+        if (v) { addStock(v); input.value = ""; }
+      }
+    });
+    input.addEventListener("blur", function () { setTimeout(clearSuggest, 150); });
+
+    $("suggestBox").addEventListener("mousedown", function (e) {
+      var node = e.target.closest ? e.target.closest(".sug-item") : null;
+      if (!node) return;
+      e.preventDefault();
+      pickSuggest(parseInt(node.getAttribute("data-idx"), 10));
+    });
 
     $("years").addEventListener("change", function () {
       state.years = parseInt($("years").value, 10);
@@ -382,9 +469,10 @@
   function init() {
     state.params = SR.allDefaultParams();
     bind();
-    DEFAULT_STOCKS.forEach(function (s, idx) {
-      addStock(s, true);
-      if (idx < 3) state.picked[s] = true;  // 默认勾选前 3 只做组合
+    var defaults = defaultStocks();
+    defaults.forEach(function (d, idx) {
+      addStock(d.input, true, d.name);
+      if (idx < 4) state.picked[d.input] = true;  // 默认勾选前 4 只做组合
     });
   }
 
