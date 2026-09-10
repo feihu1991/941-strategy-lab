@@ -34,7 +34,8 @@
     for (i = 0; i < n; i += step) {
       pts.push(((i / (n - 1)) * w).toFixed(1) + "," + (h - ((values[i] - min) / (max - min)) * h).toFixed(1));
     }
-    return '<svg class="spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' +
+    return '<svg class="spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" ' +
+      'style="width:100%;height:' + h + 'px" role="img" aria-label="净值走势">' +
       '<polyline fill="none" stroke="' + color + '" stroke-width="1.5" points="' + pts.join(" ") + '"/></svg>';
   }
 
@@ -128,7 +129,8 @@
         '<td>' + (s.exposure * 100).toFixed(0) + '%</td>' +
         '</tr>';
     }).join("");
-    return '<table class="result-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>';
+    return '<div class="table-scroll"><table class="result-table"><thead><tr>' + head +
+      '</tr></thead><tbody>' + body + '</tbody></table></div>';
   }
 
   /** 策略参数面板 */
@@ -163,9 +165,9 @@
       ["平均持仓", stats.avgHoldBars + " 天", ""],
       ["持仓占比", (stats.exposure * 100).toFixed(0) + "%", ""]
     ];
-    return '<table class="stats-table"><tbody>' + rows.map(function (r) {
+    return '<div class="table-scroll"><table class="stats-table"><tbody>' + rows.map(function (r) {
       return '<tr><td>' + r[0] + '</td><td class="' + r[2] + '">' + r[1] + '</td></tr>';
-    }).join("") + '</tbody></table>';
+    }).join("") + '</tbody></table></div>';
   }
 
   /** 交易明细 */
@@ -179,7 +181,7 @@
         '<td>' + t.bars + '天</td><td class="muted">' + esc(t.reason) + '</td>' +
         '</tr>';
     }).join("");
-    return '<div class="scroll-y"><table class="trade-table"><thead><tr>' +
+    return '<div class="scroll-y table-scroll"><table class="trade-table"><thead><tr>' +
       '<th>入场</th><th>出场</th><th>入场价</th><th>出场价</th><th>收益</th><th>持仓</th><th>原因</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>';
   }

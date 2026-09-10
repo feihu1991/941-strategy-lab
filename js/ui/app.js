@@ -196,10 +196,10 @@
     });
     var el = $("summaryChart");
     if (!labels.length) { el.innerHTML = '<p class="muted">暂无数据</p>'; return; }
-    charts.summary = charts.summary || window.Charts.bars(el, labels, [
+    charts.summary = window.Charts.bars(el, labels, [
       { name: SR.get(state.active).name, data: series[0], color: "#2f54eb" },
       { name: "买入持有", data: series[1], color: "#94a3b8" }
-    ], { rotate: labels.length > 6 ? 20 : 0 });
+    ], { rotate: labels.length > 6 ? 18 : 0 });
   }
 
   function renderMain() {
@@ -234,7 +234,7 @@
       return pf ? { name: s.name, data: pf.equity } : null;
     }).filter(Boolean);
     series.push({ name: "等权买入持有", data: main.bench, color: "#94a3b8", dash: true, width: 1.5 });
-    window.Charts.equityCompare($("portfolioChart"), main.dates, series);
+    charts.portfolio = window.Charts.equityCompare($("portfolioChart"), main.dates, series);
 
     // 组合指标 + 各策略组合对比表
     var rows = enabledStrategies().map(function (s) {
@@ -250,8 +250,9 @@
         '<td>' + st.tradeCount + '</td></tr>';
     }).join("");
     $("portfolioStats").innerHTML =
-      '<table class="result-table"><thead><tr><th>策略</th><th>组合收益</th><th>超额</th><th>最大回撤</th><th>夏普</th><th>Calmar</th><th>总交易</th></tr></thead><tbody>' +
-      rows + '</tbody></table>';
+      '<div class="table-scroll"><table class="result-table"><thead><tr>' +
+      '<th>策略</th><th>组合收益</th><th>超额</th><th>最大回撤</th><th>夏普</th><th>Calmar</th><th>总交易</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
 
   function renderDetail() {
@@ -265,24 +266,32 @@
     $("detailStats").innerHTML = C.statsTable(r.stats);
     $("detailTrades").innerHTML = C.tradeTable(r.trades);
 
-    // 多策略净值对比
-    var series = enabledStrategies().map(function (s) {
-      var rr = stock.results[s.id];
-      return rr ? { name: s.name, data: rr.equity } : null;
-    }).filter(Boolean);
-    series.push({ name: "买入持有", data: r.bench, color: "#94a3b8", dash: true, width: 1.5 });
-    window.Charts.equityCompare($("detailEquity"), r.dates, series);
+    // 图表在下一帧渲染: 确保容器已布局(宽度非 0), 否则 ECharts 会按 0 宽初始化
+    var renderCharts = function () {
+      // 多策略净值对比
+      var series = enabledStrategies().map(function (s) {
+        var rr = stock.results[s.id];
+        return rr ? { name: s.name, data: rr.equity } : null;
+      }).filter(Boolean);
+      series.push({ name: "买入持有", data: r.bench, color: "#94a3b8", dash: true, width: 1.5 });
+      charts.detailEquity = window.Charts.equityCompare($("detailEquity"), r.dates, series);
 
-    // 水下回撤
-    var ddSeries = enabledStrategies().map(function (s) {
-      var rr = stock.results[s.id];
-      if (!rr) return null;
-      return { name: s.name, data: window.Indicators.drawdown(rr.equity) };
-    }).filter(Boolean);
-    window.Charts.underwater($("detailDD"), r.dates, ddSeries);
+      // 水下回撤
+      var ddSeries = enabledStrategies().map(function (s) {
+        var rr = stock.results[s.id];
+        if (!rr) return null;
+        return { name: s.name, data: window.Indicators.drawdown(rr.equity) };
+      }).filter(Boolean);
+      charts.detailDD = window.Charts.underwater($("detailDD"), r.dates, ddSeries);
 
-    // K线 + 当前策略信号
-    window.Charts.candle($("detailCandle"), r.dates, stock.bars, r.signals);
+      // K线 + 当前策略信号
+      charts.detailCandle = window.Charts.candle($("detailCandle"), r.dates, stock.bars, r.signals);
+
+      // 修正可能的 0 宽初始化
+      Object.keys(charts).forEach(function (k) { if (charts[k] && charts[k].resize) charts[k].resize(); });
+    };
+    if (window.requestAnimationFrame) window.requestAnimationFrame(renderCharts);
+    else renderCharts();
   }
 
   // ---------- 事件 ----------

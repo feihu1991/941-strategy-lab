@@ -169,6 +169,21 @@ th.sortable:hover { color: var(--brand); }
 .result-table, .trade-table { width: 100%; }
 .trade-table th:last-child, .trade-table td:last-child { text-align: left; }
 .scroll-y { max-height: 380px; overflow-y: auto; }
+
+/* 表格横向滚动容器: 窄屏下保证最后一列可见(可滑动), 不再被裁切 */
+.table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  max-width: 100%;
+  padding-bottom: 2px;
+}
+.table-scroll::-webkit-scrollbar { height: 6px; }
+.table-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+.table-scroll::-webkit-scrollbar-track { background: transparent; }
+.scroll-y.table-scroll { overflow-y: auto; overflow-x: auto; }
+.table-scroll table { min-width: 100%; }
 .stats-table td:first-child { color: var(--ink-2); }
 .stats-table td:last-child { font-weight: 700; }
 .table-wrap-scroll { overflow-x: auto; }
@@ -204,6 +219,8 @@ th.sortable:hover { color: var(--brand); }
   .hero h1 { font-size: 21px; }
   .cards { grid-template-columns: 1fr; }
   .param-panel { grid-template-columns: 1fr; }
-  .result-table { font-size: 12px; }
-  th, td { padding: 6px; }
+  .panel { padding: 12px 12px; }
+  .table-scroll table { font-size: 12px; }
+  th, td { padding: 6px 8px; }
+  th { white-space: normal; line-height: 1.25; }
 }
